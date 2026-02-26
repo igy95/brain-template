@@ -1,0 +1,118 @@
+name: Ingest Knowledge
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**/*.md"
+      - "!.github/**"
+      - "!pipeline/**"
+      - "!README.md"
+      - "!CLAUDE.md"
+  workflow_dispatch: # Allow manual trigger
+
+concurrency:
+  group: ingest-knowledge
+  cancel-in-progress: true
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed markdown files
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Diff from last successful ingest run (not just previous commit).
+          # This ensures cancelled runs don't cause missed files.
+          LAST_SUCCESS_SHA=$(curl -sf \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/ingest.yml/runs?status=success&branch=main&per_page=1&exclude_pull_requests=true" \
+            | jq -r '.workflow_runs[0].head_sha // empty') || true
+
+          BEFORE="${LAST_SUCCESS_SHA:-${{ github.event.before }}}"
+          echo "Diff base: $BEFORE (last_success=$LAST_SUCCESS_SHA, event_before=${{ github.event.before }})"
+
+          # Full scan: first push, manual re-trigger on same SHA, or no base
+          if [ -z "$BEFORE" ] \
+             || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] \
+             || [ "$BEFORE" = "${{ github.sha }}" ]; then
+            echo "Full scan"
+            echo "CHANGED_FILES=" >> $GITHUB_ENV
+            echo "DELETED_FILES=" >> $GITHUB_ENV
+          else
+            CHANGED=$(git diff --no-renames --name-only --diff-filter=ACMR \
+              "$BEFORE"..${{ github.sha }} -- '*.md' \
+              | grep -v '^\\.github/' \
+              | grep -v '^pipeline/' \
+              | grep -v '^\.' || true)
+            DELETED=$(git diff --no-renames --name-only --diff-filter=D \
+              "$BEFORE"..${{ github.sha }} -- '*.md' \
+              | grep -v '^\\.github/' \
+              | grep -v '^pipeline/' \
+              | grep -v '^\.' || true)
+            echo "CHANGED_FILES<<EOF" >> $GITHUB_ENV
+            echo "$CHANGED" >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
+            echo "DELETED_FILES<<EOF" >> $GITHUB_ENV
+            echo "$DELETED" >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
+          fi
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ hashFiles('pipeline/requirements.txt') }}
+
+      - name: Cache sentence-transformers model
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-all-MiniLM-L6-v2
+
+      - name: Install dependencies
+        run: pip install -r pipeline/requirements.txt
+
+      - name: Run ingestion
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          QDRANT_URL: ${{ secrets.QDRANT_URL }}
+          QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
+          NEO4J_URI: ${{ secrets.NEO4J_URI }}
+          NEO4J_USERNAME: ${{ secrets.NEO4J_USERNAME }}
+          NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD }}
+          LIGHTRAG_WORKING_DIR: .lightrag_data
+        run: python pipeline/ingest.py
+
+      - name: Run post-processing
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          NEO4J_URI: ${{ secrets.NEO4J_URI }}
+          NEO4J_USERNAME: ${{ secrets.NEO4J_USERNAME }}
+          NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD }}
+        run: python pipeline/postprocess.py
+
+      # Optional: Slack failure notification (set SLACK_WEBHOOK_URL secret to enable)
+      - name: Notify Slack on failure
+        if: failure() && secrets.SLACK_WEBHOOK_URL != ''
+        run: |
+          curl -s -X POST -H 'Content-type: application/json' \
+            --data "{\"text\":\":rotating_light: *Ingestion failed* ($(date -u +%Y-%m-%d))\\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View logs>\"}" \
+            ${{ secrets.SLACK_WEBHOOK_URL }}

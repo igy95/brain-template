@@ -1,0 +1,36 @@
+name: Neo4j Keep-Alive
+
+on:
+  schedule:
+    - cron: "0 9 */2 * *"  # Every 2 days at 09:00 UTC
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - name: Query Neo4j
+        run: |
+          pip install -q neo4j
+          python -c "
+          from neo4j import GraphDatabase
+          import os
+          d = GraphDatabase.driver(os.environ['NEO4J_URI'], auth=('neo4j', os.environ['NEO4J_PASSWORD']))
+          with d.session() as s:
+              r = s.run('MATCH (n) RETURN count(n) AS cnt').single()
+              print(f'Neo4j alive: {r[\"cnt\"]} nodes')
+          d.close()
+          "
+        env:
+          NEO4J_URI: ${{ secrets.NEO4J_URI }}
+          NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD }}
+
+      # Optional: Slack failure notification (set SLACK_WEBHOOK_URL secret to enable)
+      - name: Notify Slack on failure
+        if: failure() && secrets.SLACK_WEBHOOK_URL != ''
+        run: |
+          curl -s -X POST -H 'Content-type: application/json' \
+            --data "{\"text\":\":warning: *Neo4j keep-alive failed* ($(date -u +%Y-%m-%d))\\nInstance may be paused. Resume at https://console.neo4j.io\\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View logs>\"}" \
+            ${{ secrets.SLACK_WEBHOOK_URL }}

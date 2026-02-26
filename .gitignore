@@ -1,0 +1,10 @@
+# LightRAG working directory (cached in GitHub Actions)
+.lightrag_data/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Credentials
+.env

@@ -1,0 +1,190 @@
+# Brain
+
+AI-powered personal knowledge management system.
+
+A Markdown-based personal knowledge repository. Claude Code acts as an AI assistant to navigate, add, and organize knowledge.
+
+## Prerequisites
+
+- [Claude Code](https://claude.com/claude-code) CLI
+- [uv](https://docs.astral.sh/uv/) — `curl -LsSf https://astral.sh/uv/install.sh | sh`
+
+## Automated Setup (Claude Code Does This)
+
+Open Claude Code in this repo and ask to set up the project. It will handle:
+
+```bash
+# Environment variable
+echo 'export BRAIN_PATH=~/projects/brain' >> ~/.zshrc && source ~/.zshrc
+
+# Skills (global symlinks)
+mkdir -p ~/.claude/commands
+ln -sf $BRAIN_PATH/.claude/commands/brain-update.md ~/.claude/commands/brain-update.md
+ln -sf $BRAIN_PATH/.claude/commands/brain-think.md ~/.claude/commands/brain-think.md
+ln -sf $BRAIN_PATH/.claude/commands/brain-implement.md ~/.claude/commands/brain-implement.md
+
+# Python environment
+uv venv pipeline/.venv --python 3.11
+uv pip install --python pipeline/.venv/bin/python \
+  "mcp[cli]>=1.0.0" "qdrant-client>=1.12.0" "sentence-transformers>=3.0.0" "python-dotenv>=1.0.0"
+
+# Credentials file
+cp pipeline/.env.example pipeline/.env
+```
+
+## Manual Setup (You Do This)
+
+These steps require a browser or a regular terminal — Claude Code cannot do them for you.
+
+### 1. Create external service accounts
+
+Sign up and get credentials from these three services:
+
+| Service | Sign up | What to copy |
+|---|---|---|
+| [Qdrant Cloud](https://cloud.qdrant.io) | Create a free cluster | Cluster URL, API Key |
+| [Neo4j Aura](https://console.neo4j.io) | Create a free instance | Connection URI, Password (username is `neo4j`) |
+| [OpenAI](https://platform.openai.com/api-keys) | Generate an API key | API Key |
+
+### 2. Fill in credentials
+
+Edit `pipeline/.env` (created in Automated Setup) and fill in the actual values:
+
+- `QDRANT_URL` — cluster URL from [cloud.qdrant.io](https://cloud.qdrant.io)
+- `QDRANT_API_KEY` — API key from [cloud.qdrant.io](https://cloud.qdrant.io)
+- `NEO4J_URI` — connection URI from [console.neo4j.io](https://console.neo4j.io)
+- `NEO4J_USERNAME` — typically `neo4j`
+- `NEO4J_PASSWORD` — password from [console.neo4j.io](https://console.neo4j.io)
+
+### 3. Register GitHub Secrets
+
+Go to your GitHub repo → Settings → Secrets and variables → Actions, and add:
+
+- `OPENAI_API_KEY` — OpenAI API key (for entity extraction)
+- `QDRANT_URL` — Qdrant Cloud cluster URL
+- `QDRANT_API_KEY` — Qdrant Cloud API key
+- `NEO4J_URI` — Neo4j Aura connection URI
+- `NEO4J_USERNAME` — typically `neo4j`
+- `NEO4J_PASSWORD` — Neo4j Aura password
+- `SLACK_WEBHOOK_URL` — (Optional) Slack webhook for failure alerts
+
+### 4. Register MCP servers
+
+Run in a **regular terminal** (not inside Claude Code):
+
+```bash
+cd ~/projects/brain && source pipeline/.env
+
+# Neo4j (graph search)
+claude mcp add-json neo4j-brain "{
+  \"type\":\"stdio\",
+  \"command\":\"uvx\",
+  \"args\":[\"mcp-neo4j-cypher\"],
+  \"env\":{
+    \"NEO4J_URI\":\"$NEO4J_URI\",
+    \"NEO4J_USERNAME\":\"$NEO4J_USERNAME\",
+    \"NEO4J_PASSWORD\":\"$NEO4J_PASSWORD\",
+    \"NEO4J_DATABASE\":\"neo4j\"
+  }
+}" --scope user
+
+# Qdrant (vector search)
+claude mcp add-json brain-search "{
+  \"type\":\"stdio\",
+  \"command\":\"$(pwd)/pipeline/.venv/bin/python\",
+  \"args\":[\"$(pwd)/pipeline/mcp_brain_search.py\"],
+  \"env\":{
+    \"QDRANT_URL\":\"$QDRANT_URL\",
+    \"QDRANT_API_KEY\":\"$QDRANT_API_KEY\"
+  }
+}" --scope user
+```
+
+## Verification
+
+After completing all steps above, open Claude Code and verify:
+
+1. **MCP servers loaded** — On startup, Claude Code should show both `neo4j-brain` and `brain-search` as connected MCP servers.
+2. **Vector search works** — Ask: `"Search my brain for React"`. The `brain_search` tool should return document chunks with scores and file paths.
+3. **Graph search works** — Ask: `"What entities are in my knowledge graph?"`. The `brain_entities` tool or a Cypher query via `read_neo4j_cypher` should return results.
+4. **Skill works** — Type `/brain-update test note` and confirm it creates a markdown file in the repo.
+
+If all four checks pass, setup is complete.
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| MCP server not listed on startup | Registration failed or ran inside Claude Code | Re-run `claude mcp add-json` commands in a **regular terminal** (not Claude Code) |
+| `brain_search` returns empty or errors | Qdrant credentials wrong or cluster paused | Verify `QDRANT_URL` and `QDRANT_API_KEY` in `pipeline/.env`; check cluster status at [cloud.qdrant.io](https://cloud.qdrant.io) |
+| `read_neo4j_cypher` fails | Neo4j credentials wrong or instance paused | Verify `NEO4J_URI` and `NEO4J_PASSWORD` in `pipeline/.env`; Neo4j Aura Free pauses after 3 days of inactivity — resume at [console.neo4j.io](https://console.neo4j.io) |
+| `sentence-transformers` import error | Python venv not set up or packages missing | Re-run the `uv venv` and `uv pip install` commands from the Automated Setup section |
+| `/brain-update` or `/brain-think` not found | Symlink missing | Run the symlink commands from the Automated Setup section |
+| `BRAIN_PATH` not set | Shell config not sourced | Run `source ~/.zshrc` or open a new terminal |
+
+## Usage
+
+Open Claude Code from any directory. Both MCP servers activate automatically.
+
+**Add knowledge:**
+```
+/brain-update RSC renders on server and streams to client
+```
+
+The `/brain-update` skill handles classification, file creation, metadata update, and git push.
+
+**Think with your brain:**
+```
+/brain-think https://example.com/article-about-ai
+/brain-think I think the value of expertise is declining
+```
+
+The `/brain-think` skill searches the brain broadly and responds as a thinking partner grounded in accumulated knowledge.
+
+**Implement autonomously:**
+```
+/brain-implement https://github.com/your-org/repo/issues/123
+/brain-implement Add unread message badge to chat list
+```
+
+The `/brain-implement` skill follows the full implementation workflow: task understanding, knowledge loading, codebase analysis, implementation, verification, commit & PR, and self-review.
+
+**Retrieve knowledge:**
+```
+"Summarize what I wrote about React recently"
+```
+
+## Customizing Your Brain
+
+### Adding categories
+
+1. Create a new folder (e.g., `finance/`)
+2. Add a `_meta.md` file following the pattern of existing folders
+3. Add the category to `index.md`
+
+### Folder structure
+
+Categories grow organically. Start with the defaults and split when folders get crowded (15+ files with shared tags → create subfolder). See `schema.md` for detailed rules.
+
+### Language
+
+| Scope | Language |
+|---|---|
+| Frontmatter, factual content | English |
+| Subjective content (journal, life) | Your language |
+| AI responses | Matches your language |
+
+## Architecture
+
+```
+brain/
+├── CLAUDE.md         # AI instructions
+├── index.md          # Category map (lists all folders)
+├── schema.md         # Schema & rules
+├── inbox/            # Uncategorized — auto-classified weekly
+├── <category>/       # Topic folders (tech/, business/, life/, journal/, ...)
+│   └── _meta.md      # Domain summary and subtopic list
+└── pipeline/         # Ingestion & MCP server
+```
+
+See `tech/brain-architecture.md` for the full system design.

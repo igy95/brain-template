@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__neo4j-brain__get_neo4j_schema",
+      "mcp__brain-search__brain_search",
+      "mcp__neo4j-brain__read_neo4j_cypher",
+      "mcp__brain-search__brain_entities",
+      "mcp__neo4j-brain__write_neo4j_cypher",
+      "Skill(brain-update)",
+      "Skill(brain-think)",
+      "Skill(brain-implement)"
+    ]
+  }
+}
