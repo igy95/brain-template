@@ -19,7 +19,7 @@ Your markdown files
 **What this means:**
 - Your document content (including full text) is sent to and stored on third-party servers
 - Each service is under **your own account and API keys** — no one else has access
-- OpenAI API data is not used for model training ([OpenAI policy](https://openai.com/enterprise-privacy/))
+- OpenAI API data is not used for model training by default ([OpenAI data policy](https://platform.openai.com/docs/guides/your-data))
 - Embeddings are generated locally (`all-MiniLM-L6-v2`) — no API call needed for this step
 - **Keep this repository private.** Your brain contains personal knowledge — a public repo would expose all of it. Always create this as a private GitHub repository.
 
