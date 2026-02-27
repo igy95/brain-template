@@ -4,6 +4,51 @@ AI-powered personal knowledge management system.
 
 A Markdown-based personal knowledge repository. Claude Code acts as an AI assistant to navigate, add, and organize knowledge.
 
+## Data Flow & Privacy
+
+When you push markdown files, your content is processed by external services:
+
+```
+Your markdown files
+  ├─► GitHub (private repo)         — full source files stored
+  ├─► OpenAI API (GPT-4o-mini)     — full text sent for entity extraction
+  ├─► Qdrant Cloud                  — embeddings + original text stored
+  └─► Neo4j Aura                    — entity names, descriptions, relationships stored
+```
+
+**What this means:**
+- Your document content (including full text) is sent to and stored on third-party servers
+- Each service is under **your own account and API keys** — no one else has access
+- OpenAI API data is not used for model training ([OpenAI policy](https://openai.com/enterprise-privacy/))
+- Embeddings are generated locally (`all-MiniLM-L6-v2`) — no API call needed for this step
+
+**If you store sensitive information** (company internals, trade secrets, personal data), be aware that this content will exist on external cloud infrastructure outside your direct control. This project provides a built-in sensitive content mechanism — define your criteria in `.sensitive/policy.md` and matching content will be kept local-only automatically. You can also:
+- Self-host Qdrant and Neo4j via Docker for full data sovereignty (see below)
+- Manually exclude files via `EXCLUDED_FILES` in `pipeline/config.py`
+
+**Disclaimer:** This project provides tools to help manage sensitive content locally, but the responsibility for classifying and protecting sensitive information lies entirely with the user. The maintainers accept no liability for data exposure resulting from misconfiguration or user error.
+
+<details>
+<summary><strong>Self-hosting option (Docker)</strong></summary>
+
+Replace cloud services with local instances:
+
+```bash
+# Qdrant (vector DB)
+docker run -p 6333:6333 qdrant/qdrant
+
+# Neo4j (graph DB)
+docker run -p 7687:7687 -e NEO4J_AUTH=neo4j/password neo4j
+
+# Update pipeline/.env
+QDRANT_URL=http://localhost:6333
+NEO4J_URI=bolt://localhost:7687
+```
+
+To also remove OpenAI dependency, replace the LLM entity extraction with a local model (e.g., Ollama). This requires modifying `pipeline/ingest.py` to use a local LLM provider.
+
+</details>
+
 ## Prerequisites
 
 - [Claude Code](https://claude.com/claude-code) CLI
@@ -137,7 +182,7 @@ Open Claude Code from any directory. Both MCP servers activate automatically.
 /brain-update RSC renders on server and streams to client
 ```
 
-The `/brain-update` skill handles classification, file creation, metadata update, and git push.
+The `/brain-update` skill handles classification, file creation, metadata update, and git push. If you've defined a sensitive content policy, matching content is automatically saved to `.sensitive/` (local-only) instead.
 
 **Think with your brain:**
 ```
@@ -180,51 +225,6 @@ Categories grow organically. Start with the defaults and split when folders get 
 | Subjective content (journal, life) | Your language |
 | AI responses | Matches your language |
 
-## Data Flow & Privacy
-
-When you push markdown files, your content is processed by external services:
-
-```
-Your markdown files
-  ├─► GitHub (private repo)         — full source files stored
-  ├─► OpenAI API (GPT-4o-mini)     — full text sent for entity extraction
-  ├─► Qdrant Cloud                  — embeddings + original text stored
-  └─► Neo4j Aura                    — entity names, descriptions, relationships stored
-```
-
-**What this means:**
-- Your document content (including full text) is sent to and stored on third-party servers
-- Each service is under **your own account and API keys** — no one else has access
-- OpenAI API data is not used for model training ([OpenAI policy](https://openai.com/enterprise-privacy/))
-- Embeddings are generated locally (`all-MiniLM-L6-v2`) — no API call needed for this step
-
-**If you store sensitive information** (company internals, trade secrets, personal data), be aware that this content will exist on external cloud infrastructure outside your direct control. This project provides a built-in sensitive content mechanism — define your criteria in `.sensitive/policy.md` and matching content will be kept local-only automatically. You can also:
-- Self-host Qdrant and Neo4j via Docker for full data sovereignty (see below)
-- Manually exclude files via `EXCLUDED_FILES` in `pipeline/config.py`
-
-**Disclaimer:** This project provides tools to help manage sensitive content locally, but the responsibility for classifying and protecting sensitive information lies entirely with the user. The maintainers accept no liability for data exposure resulting from misconfiguration or user error.
-
-<details>
-<summary><strong>Self-hosting option (Docker)</strong></summary>
-
-Replace cloud services with local instances:
-
-```bash
-# Qdrant (vector DB)
-docker run -p 6333:6333 qdrant/qdrant
-
-# Neo4j (graph DB)
-docker run -p 7687:7687 -e NEO4J_AUTH=neo4j/password neo4j
-
-# Update pipeline/.env
-QDRANT_URL=http://localhost:6333
-NEO4J_URI=bolt://localhost:7687
-```
-
-To also remove OpenAI dependency, replace the LLM entity extraction with a local model (e.g., Ollama). This requires modifying `pipeline/ingest.py` to use a local LLM provider.
-
-</details>
-
 ## Architecture
 
 ```
@@ -232,6 +232,8 @@ brain/
 ├── CLAUDE.md         # AI instructions
 ├── index.md          # Category map (lists all folders)
 ├── schema.md         # Schema & rules
+├── .sensitive/       # Local-only sensitive content (gitignored)
+│   └── policy.md     # User-defined sensitivity criteria (tracked)
 ├── inbox/            # Uncategorized — auto-classified weekly
 ├── <category>/       # Topic folders (tech/, business/, life/, journal/, ...)
 │   └── _meta.md      # Domain summary and subtopic list
