@@ -25,6 +25,7 @@ Read/process the input thoroughly. Identify the core claims, assumptions, and im
 - Don't just search for keywords from the input
 - Search for abstract concepts, structural similarities, and underlying tensions
 - Browse folder structures and `_meta.md` files when semantic search falls short
+- Also search `.sensitive/` via Glob/Grep — these local-only files are not indexed in MCP but may contain relevant knowledge
 - Read documents across different domains — the brain spans technology, business, life, and personal reflections
 - Connections across these domains are often where the most valuable thinking emerges
 

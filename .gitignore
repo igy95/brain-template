@@ -8,3 +8,7 @@ __pycache__/
 
 # Credentials
 .env
+
+# Sensitive content (local-only, never pushed)
+.sensitive/*
+!.sensitive/policy.md

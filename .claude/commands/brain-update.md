@@ -90,6 +90,25 @@ This ensures organization-specific or project-specific knowledge is correctly sc
 
 ---
 
+## Step 2.5: Sensitivity Check
+
+1. Read `$BRAIN_PATH/.sensitive/policy.md`
+2. If the file has no user-defined topics (only examples with `(example)` prefix), **skip this step**
+3. Compare the classified content against the sensitive topics listed in the policy
+4. Classify sensitivity:
+
+| Judgment | Action |
+|---|---|
+| **Clearly sensitive** | Set `SENSITIVE=true`, change target path to `$BRAIN_PATH/.sensitive/<category>/<filename>.md` |
+| **Clearly not sensitive** | Set `SENSITIVE=false`, proceed normally |
+| **Ambiguous** | **Ask the user** before proceeding — explain which policy topic it partially matches and let them decide |
+
+5. If the user confirms sensitive → `SENSITIVE=true`; if not → `SENSITIVE=false`
+
+> When content is marked sensitive, it will be saved locally only — not pushed to git, not ingested into cloud services.
+
+---
+
 ## Step 3: Verify (Factual Content Only)
 
 **Skip this step entirely for subjective content.**
@@ -126,14 +145,16 @@ Verification report examples:
 4. If not found → inform user, create as new note
 
 ### When creating a new note
-1. Read target folder's `_meta.md`
+1. Read target folder's `_meta.md` (if `SENSITIVE=true`, skip — `.sensitive/` has no `_meta.md`)
 2. Generate filename (kebab-case):
    - "RSC renders on server..." → `react-server-components.md`
    - "Developer tools business..." → `developer-tools-business-interest.md`
    - Journal entries: `YYYY-MM-DD-title.md` (e.g., `2026-02-17-weekly-review.md`)
-3. Glob for existing similar filenames
+3. Glob for existing similar filenames (search both `$BRAIN_PATH/` and `$BRAIN_PATH/.sensitive/` to avoid duplicates)
    - If exists → ask user: update existing vs create separate
-4. File path: `$BRAIN_PATH/<category>/<filename>.md`
+4. File path:
+   - **If `SENSITIVE=false`**: `$BRAIN_PATH/<category>/<filename>.md`
+   - **If `SENSITIVE=true`**: `$BRAIN_PATH/.sensitive/<category>/<filename>.md`
 
 ---
 
@@ -179,6 +200,7 @@ confidence: <high|medium|low>
 - Maximum 5 connections
 - Use relative paths (e.g., `tech/frontend/react-hooks.md`)
 - Add reverse links to connected notes' `related` fields (bidirectional)
+- **If `SENSITIVE=true`**: Do NOT add reverse links to non-sensitive files (this would expose `.sensitive/` paths in pushed files). Only add forward links from the sensitive file.
 
 ### Document size check
 
@@ -222,6 +244,10 @@ confidence: <high|medium|low>
 
 ## Step 6: Update Metadata
 
+**If `SENSITIVE=true`:** Skip this step entirely. Sensitive files must not appear in `_meta.md` or `index.md` since those files are pushed to git.
+
+**If `SENSITIVE=false`:**
+
 ### Update _meta.md
 
 Read and update the folder's `_meta.md`:
@@ -256,15 +282,18 @@ Read and update the folder's `_meta.md`:
 - [ ] **Step 2**: Classification complete (intent / content type / category / cross-category split-or-tiebreaker applied)
 - [ ] **Step 3**: Verification handled (factual/mixed → cross-check + contradiction grep + report written, subjective → explicitly skipped)
 - [ ] **Step 4**: Similar file check (grep content + glob filenames)
+- [ ] **Step 2.5**: Sensitivity check (policy.md read → sensitive/not-sensitive determined)
 - [ ] **Step 5 size**: Document size check (200+ lines or 3+ topics → split)
 - [ ] **Step 5 density**: Folder density check (count files in target folder, 15+ with 5+ common tag → subfolder)
-- [ ] **Step 6**: Metadata updated (_meta.md entry + index.md stats + reverse links on related notes)
+- [ ] **Step 6**: Metadata updated (if not sensitive: _meta.md entry + index.md stats + reverse links on related notes)
 
 ---
 
 ## Step 7: Git Commit & Push
 
-Execute from `$BRAIN_PATH`:
+**If `SENSITIVE=true`:** Skip this step entirely. The file is already saved locally in `.sensitive/` and must not be pushed.
+
+**If `SENSITIVE=false`:** Execute from `$BRAIN_PATH`:
 
 ```bash
 git -C $BRAIN_PATH add <explicitly list modified files>
@@ -302,6 +331,7 @@ Category: <category>
 Tags: <tag1>, <tag2>, ...
 Confidence: <confidence>
 Related: <related note titles, or "none">
+Storage: <local-only (sensitive) | synced>
 
 (if verification performed)
 Verification: <brief summary>

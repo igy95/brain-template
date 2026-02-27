@@ -32,6 +32,7 @@ This repository is a Brain that structures and stores personal knowledge, ideas,
 2. Target folder's `_meta.md` for topic list
 3. Frontmatter `summary` for content preview
 4. Full body only when necessary
+5. After MCP search, also search `.sensitive/` locally via Glob/Grep/Read — these files are not indexed in cloud services
 
 ### When moving/organizing documents
 1. Move `inbox/` documents to appropriate categories

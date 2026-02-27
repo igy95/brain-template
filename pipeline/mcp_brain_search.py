@@ -106,7 +106,10 @@ mcp = FastMCP(
         "Do NOT use brain_entities for action items, task lists, or document lookup.\n"
         "- Write queries in the same language as the brain content (primarily Korean). Avoid redundant English translations.\n"
         "- Typical flow: brain_search(summary_only=true, top_k=5) → identify relevant doc → Read the file directly if full content is needed.\n"
-        "- Result paths are absolute file paths. You can pass them directly to the Read tool without any path resolution."
+        "- Result paths are absolute file paths. You can pass them directly to the Read tool without any path resolution.\n\n"
+        "## Local-Only Content\n"
+        "Some documents may be stored in `.sensitive/` and are NOT indexed in Qdrant. "
+        "After MCP search, also search the `.sensitive/` directory via Glob/Grep/Read for complete results."
     ),
 )
 
