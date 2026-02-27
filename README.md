@@ -21,6 +21,7 @@ Your markdown files
 - Each service is under **your own account and API keys** — no one else has access
 - OpenAI API data is not used for model training ([OpenAI policy](https://openai.com/enterprise-privacy/))
 - Embeddings are generated locally (`all-MiniLM-L6-v2`) — no API call needed for this step
+- **Keep this repository private.** Your brain contains personal knowledge — a public repo would expose all of it. Always create this as a private GitHub repository.
 
 **If you store sensitive information** (company internals, trade secrets, personal data), be aware that this content will exist on external cloud infrastructure outside your direct control. This project provides a built-in sensitive content mechanism — define your criteria in `.sensitive/policy.md` and matching content will be kept local-only automatically. You can also:
 - Self-host Qdrant and Neo4j via Docker for full data sovereignty (see below)
